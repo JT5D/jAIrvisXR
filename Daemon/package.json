@@ -1,0 +1,14 @@
+{
+  "name": "jarvis-daemon",
+  "version": "3.0.0",
+  "type": "module",
+  "description": "jAIrvisXR Daemon Agent — always-on voice + orchestrator",
+  "main": "jarvis-daemon.mjs",
+  "scripts": {
+    "start": "node jarvis-daemon.mjs",
+    "dev": "node --watch jarvis-daemon.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
