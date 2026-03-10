@@ -15,7 +15,7 @@ import { memoryInit, memoryWrite } from "./shared-memory.mjs";
 import { logActivity } from "./activity-log.mjs";
 import { contextInit, contextToPrompt } from "./context-store.mjs";
 import { recordAudio, transcribe, matchWakeWord } from "./voice-listener.mjs";
-import { speak } from "./tts-speaker.mjs";
+import { speak, EDGE_TTS_BIN } from "./tts-speaker.mjs";
 import { TOOL_SCHEMAS } from "./tool-executor.mjs";
 import { startHttpApi, stopHttpApi } from "./http-api.mjs";
 import { initProviders, getActiveProvider, getResponse } from "./llm-client.mjs";
@@ -83,7 +83,10 @@ async function main() {
   console.log("\x1b[36m  Jarvis Daemon v3 — jAIrvisXR\x1b[0m");
   console.log("\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m");
   console.log(`  Brain:    ${providers} (auto-failover)`);
-  console.log(`  Voice:    macOS say (${CONFIG.macVoice})`);
+  const ttsLabel = EDGE_TTS_BIN
+    ? `edge-tts (${CONFIG.ttsVoice}) → macOS say (${CONFIG.macVoice})`
+    : `macOS say (${CONFIG.macVoice})`;
+  console.log(`  Voice:    ${ttsLabel}`);
   console.log(`  STT:      Groq Whisper → local Whisper (${CONFIG.whisperModel})`);
   console.log(`  Wake:     "Hey Jarvis" / "Jarvis"`);
   console.log(`  Tools:    ${TOOL_SCHEMAS.length}`);
