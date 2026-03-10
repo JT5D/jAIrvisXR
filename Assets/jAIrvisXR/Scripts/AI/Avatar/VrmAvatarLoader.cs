@@ -89,24 +89,25 @@ namespace jAIrvisXR.AI.Avatar
 #if HAS_UNIVRM
             try
             {
-                // UniVRM 1.0 async loading:
-                // var vrm10Instance = await UniVRM10.Vrm10.LoadBytesAsync(
-                //     vrmData,
-                //     canLoadVrm0X: true,
-                //     controlRigGenerationOption: UniVRM10.ControlRigGenerationOption.None,
-                //     ct: cancellationToken
-                // );
-                // _currentAvatar = vrm10Instance.gameObject;
-                //
-                // if (_config != null && _config.UseJobSystemSpringBones)
-                // {
-                //     var instance = _currentAvatar.GetComponent<UniVRM10.Vrm10Instance>();
-                //     // Configure fast spring bone runtime for Quest
-                // }
+                UniVRM10.IVrm10SpringBoneRuntime springBoneRuntime = null;
+                if (_config != null && _config.UseJobSystemSpringBones)
+                    springBoneRuntime = new UniVRM10.Vrm10FastSpringboneRuntime();
 
-                await Task.Yield();
-                _currentAvatar = CreatePlaceholder("VRM_Avatar");
-                Debug.Log($"[{ProviderName}] VRM loaded via UniVRM.");
+                var vrm10Instance = await UniVRM10.Vrm10.LoadBytesAsync(
+                    vrmData,
+                    canLoadVrm0X: true,
+                    controlRigGenerationOption: UniVRM10.ControlRigGenerationOption.Generate,
+                    showMeshes: true,
+                    ct: cancellationToken,
+                    springboneRuntime: springBoneRuntime
+                );
+
+                _currentAvatar = vrm10Instance.gameObject;
+
+                if (Camera.main != null)
+                    vrm10Instance.LookAtTarget = Camera.main.transform;
+
+                Debug.Log($"[{ProviderName}] VRM loaded via UniVRM. SpringBones: {(springBoneRuntime != null ? "JobSystem" : "default")}");
             }
             catch (Exception ex)
             {

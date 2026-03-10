@@ -782,7 +782,9 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    1: HAS_LIVEKIT;HAS_UNIVRM;UNITY_XR_HANDS
+    7: HAS_LIVEKIT;HAS_UNIVRM;UNITY_XR_HANDS
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

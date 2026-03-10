@@ -121,17 +121,24 @@ namespace jAIrvisXR.AI.Avatar
         }
 
 #if HAS_UNIVRM
+        private UniVRM10.Vrm10Instance _vrmInstance;
+
         private void ApplyToVrm()
         {
             if (_avatarRoot == null) return;
-            // var vrm = _avatarRoot.GetComponent<UniVRM10.Vrm10Instance>();
-            // if (vrm == null) return;
-            // var expression = vrm.Runtime.Expression;
-            // expression.SetWeight(UniVRM10.ExpressionKey.Aa, WeightA);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Ih, WeightI);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Ou, WeightU);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Ee, WeightE);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Oh, WeightO);
+
+            if (_vrmInstance == null)
+            {
+                _vrmInstance = _avatarRoot.GetComponent<UniVRM10.Vrm10Instance>();
+                if (_vrmInstance == null) return;
+            }
+
+            var expression = _vrmInstance.Runtime.Expression;
+            expression.SetWeight(UniVRM10.ExpressionKey.Aa, WeightA);
+            expression.SetWeight(UniVRM10.ExpressionKey.Ih, WeightI);
+            expression.SetWeight(UniVRM10.ExpressionKey.Ou, WeightU);
+            expression.SetWeight(UniVRM10.ExpressionKey.Ee, WeightE);
+            expression.SetWeight(UniVRM10.ExpressionKey.Oh, WeightO);
         }
 #endif
     }

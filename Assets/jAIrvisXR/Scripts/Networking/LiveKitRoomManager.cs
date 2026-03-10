@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +21,12 @@ namespace jAIrvisXR.Networking
         private RoomConnectionState _connectionState = RoomConnectionState.Disconnected;
         private string _currentRoom;
         private string _localIdentity;
+
+#if HAS_LIVEKIT
+        private LiveKit.Room _room;
+        /// <summary>LiveKit Room instance for other components (e.g. AudioBridge) to publish tracks.</summary>
+        public LiveKit.Room Room => _room;
+#endif
 
         public string ProviderName => "LiveKit";
         public bool IsReady { get; private set; }
@@ -72,12 +79,24 @@ namespace jAIrvisXR.Networking
             // --- LiveKit SDK room connection ---
             try
             {
-                // LiveKit SDK integration point:
-                // _room = new LiveKit.Room();
-                // _room.ParticipantConnected += HandleParticipantConnected;
-                // _room.ParticipantDisconnected += HandleParticipantDisconnected;
-                // await _room.Connect(ServerUrl, token);
-                Debug.Log($"[LiveKit] SDK connect to {ServerUrl} room={roomName}");
+                _room = new LiveKit.Room();
+                _room.ParticipantConnected += OnLiveKitParticipantConnected;
+                _room.ParticipantDisconnected += OnLiveKitParticipantDisconnected;
+                _room.Disconnected += OnLiveKitDisconnected;
+                _room.Reconnecting += OnLiveKitReconnecting;
+                _room.Reconnected += OnLiveKitReconnected;
+
+                var tcs = new TaskCompletionSource<bool>();
+                StartCoroutine(ConnectCoroutine(token, tcs));
+                await tcs.Task;
+
+                if (!tcs.Task.Result)
+                {
+                    SetConnectionState(RoomConnectionState.Error);
+                    return MultiplayerResult.Failure("LiveKit room connect failed.");
+                }
+
+                Debug.Log($"[LiveKit] SDK connected to {ServerUrl} room={roomName}");
             }
             catch (Exception ex)
             {
@@ -110,7 +129,16 @@ namespace jAIrvisXR.Networking
                 return Task.FromResult(MultiplayerResult.Failure("Not connected to any room."));
 
 #if HAS_LIVEKIT
-            // _room?.Disconnect();
+            if (_room != null)
+            {
+                _room.ParticipantConnected -= OnLiveKitParticipantConnected;
+                _room.ParticipantDisconnected -= OnLiveKitParticipantDisconnected;
+                _room.Disconnected -= OnLiveKitDisconnected;
+                _room.Reconnecting -= OnLiveKitReconnecting;
+                _room.Reconnected -= OnLiveKitReconnected;
+                _room.Disconnect();
+                _room = null;
+            }
 #endif
 
             foreach (var p in _participants)
@@ -176,35 +204,46 @@ namespace jAIrvisXR.Networking
         }
 
 #if HAS_LIVEKIT
-        private void HandleParticipantConnected(string identity, string name)
+        private IEnumerator ConnectCoroutine(string token, TaskCompletionSource<bool> tcs)
+        {
+            var connect = _room.Connect(ServerUrl, token, new LiveKit.RoomOptions());
+            yield return connect;
+            tcs.TrySetResult(!connect.IsError);
+        }
+
+        private void OnLiveKitParticipantConnected(LiveKit.RemoteParticipant participant)
         {
             var info = new ParticipantInfo
             {
-                Identity = identity,
-                Name = name,
+                Identity = participant.Identity,
+                Name = participant.Name ?? participant.Identity,
                 IsLocal = false,
-                HasAudio = true,
+                HasAudio = participant.Tracks.Count > 0,
                 HasVideo = false
             };
             _participants.Add(info);
             OnParticipantJoined?.Invoke(info);
-            Debug.Log($"[LiveKit] Participant joined: {info}");
+            Debug.Log($"[LiveKit] Participant joined: {participant.Identity}");
         }
 
-        private void HandleParticipantDisconnected(string identity)
+        private void OnLiveKitParticipantDisconnected(LiveKit.RemoteParticipant participant)
         {
             for (int i = _participants.Count - 1; i >= 0; i--)
             {
-                if (_participants[i].Identity == identity)
+                if (_participants[i].Identity == participant.Identity)
                 {
                     var info = _participants[i];
                     _participants.RemoveAt(i);
                     OnParticipantLeft?.Invoke(info);
-                    Debug.Log($"[LiveKit] Participant left: {info}");
+                    Debug.Log($"[LiveKit] Participant left: {participant.Identity}");
                     break;
                 }
             }
         }
+
+        private void OnLiveKitDisconnected() => SetConnectionState(RoomConnectionState.Disconnected);
+        private void OnLiveKitReconnecting() => SetConnectionState(RoomConnectionState.Reconnecting);
+        private void OnLiveKitReconnected() => SetConnectionState(RoomConnectionState.Connected);
 #endif
     }
 }

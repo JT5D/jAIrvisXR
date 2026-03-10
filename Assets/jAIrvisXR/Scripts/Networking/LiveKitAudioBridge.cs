@@ -1,12 +1,15 @@
+using System.Collections;
 using UnityEngine;
 using jAIrvisXR.Core.Config;
 
 namespace jAIrvisXR.Networking
 {
     /// <summary>
-    /// Captures TTS audio output via OnAudioFilterRead and publishes it
-    /// as a LiveKit audio track, so remote participants hear the AI.
+    /// Captures TTS audio output and publishes it as a LiveKit audio track,
+    /// so remote participants hear the AI assistant.
     /// Attach to the same GameObject as AudioPlaybackHandler's AudioSource.
+    /// When HAS_LIVEKIT is defined, uses BasicAudioSource to capture from the
+    /// Unity AudioSource and publishes via LocalAudioTrack. Otherwise, no-op.
     /// </summary>
     [RequireComponent(typeof(AudioSource))]
     public class LiveKitAudioBridge : MonoBehaviour
@@ -14,59 +17,114 @@ namespace jAIrvisXR.Networking
         [SerializeField] private MultiplayerConfig _config;
         [SerializeField] private bool _enableCapture = true;
 
-        private IMultiplayerProvider _provider;
+        private LiveKitRoomManager _roomManager;
         private AudioSource _audioSource;
-        private int _sampleRate;
-        private int _channels;
         private bool _isPublishing;
+
+#if HAS_LIVEKIT
+        private LiveKit.BasicAudioSource _rtcSource;
+        private LiveKit.LocalAudioTrack _localTrack;
+#endif
 
         private void Awake()
         {
             _audioSource = GetComponent<AudioSource>();
-            _sampleRate = AudioSettings.outputSampleRate;
-            AudioSettings.GetDSPBufferSize(out _, out _);
-
-            var outputConfig = AudioSettings.GetConfiguration();
-            _channels = outputConfig.speakerMode == AudioSpeakerMode.Mono ? 1 : 2;
         }
 
         private void Start()
         {
-            // Find multiplayer provider on same or parent GameObject
-            _provider = GetComponent<IMultiplayerProvider>() as IMultiplayerProvider;
-            if (_provider == null)
-                _provider = GetComponentInParent<MonoBehaviour>() as IMultiplayerProvider;
+            _roomManager = GetComponent<LiveKitRoomManager>();
+            if (_roomManager == null)
+                _roomManager = GetComponentInParent<LiveKitRoomManager>();
 
-            if (_provider == null)
-                Debug.LogWarning("[AudioBridge] No IMultiplayerProvider found. Audio will not be published remotely.");
-            else
-                Debug.Log($"[AudioBridge] Linked to {_provider.ProviderName}. Capture: {_enableCapture}");
+            if (_roomManager == null)
+            {
+                Debug.LogWarning("[AudioBridge] No LiveKitRoomManager found. Audio will not be published remotely.");
+                return;
+            }
+
+            _roomManager.OnConnectionStateChanged += OnConnectionStateChanged;
+            Debug.Log($"[AudioBridge] Linked to {_roomManager.ProviderName}. Capture: {_enableCapture}");
         }
 
-        /// <summary>
-        /// Called by Unity's audio thread. Intercepts audio samples being
-        /// played through the AudioSource (TTS output) and forwards them
-        /// to LiveKit for remote participants.
-        /// </summary>
-        private void OnAudioFilterRead(float[] data, int channels)
+        private void OnConnectionStateChanged(RoomConnectionState state)
         {
-            if (!_enableCapture || _provider == null) return;
-            if (_provider.ConnectionState != RoomConnectionState.Connected) return;
+            if (state == RoomConnectionState.Connected && _enableCapture)
+                PublishAudio();
+            else if (state == RoomConnectionState.Disconnected)
+                UnpublishAudio();
+        }
+
+        private void PublishAudio()
+        {
+            if (_isPublishing) return;
             if (_config != null && !_config.PublishTtsAudio) return;
 
 #if HAS_LIVEKIT
-            // Publish audio samples to LiveKit local audio track
-            // _localAudioTrack?.WriteSamples(data, _sampleRate, channels);
+            if (_roomManager.Room == null) return;
+
+            _rtcSource = new LiveKit.BasicAudioSource(_audioSource);
+            _localTrack = LiveKit.LocalAudioTrack.CreateAudioTrack(
+                "tts-audio", _rtcSource, _roomManager.Room);
+
+            StartCoroutine(PublishCoroutine());
+#else
+            Debug.Log("[AudioBridge] LiveKit SDK not installed — audio publishing skipped.");
+#endif
+            _isPublishing = true;
+        }
+
+#if HAS_LIVEKIT
+        private IEnumerator PublishCoroutine()
+        {
+            var options = new LiveKit.Proto.TrackPublishOptions
+            {
+                Source = LiveKit.Proto.TrackSource.SourceMicrophone,
+            };
+
+            var publish = _roomManager.Room.LocalParticipant.PublishTrack(_localTrack, options);
+            yield return publish;
+
+            if (publish.IsError)
+            {
+                Debug.LogError("[AudioBridge] Failed to publish TTS audio track.");
+                yield break;
+            }
+
+            _rtcSource.Start();
+            Debug.Log("[AudioBridge] TTS audio track published to LiveKit room.");
+        }
 #endif
 
-            // Data passes through unmodified — local playback is unaffected
+        private void UnpublishAudio()
+        {
+            if (!_isPublishing) return;
+
+#if HAS_LIVEKIT
+            _rtcSource?.Stop();
+            _rtcSource?.Dispose();
+            _rtcSource = null;
+            _localTrack = null;
+#endif
+            _isPublishing = false;
+            Debug.Log("[AudioBridge] Audio track unpublished.");
         }
 
         public void SetPublishing(bool enabled)
         {
-            _isPublishing = enabled;
             _enableCapture = enabled;
+            if (enabled && _roomManager?.ConnectionState == RoomConnectionState.Connected)
+                PublishAudio();
+            else if (!enabled)
+                UnpublishAudio();
             Debug.Log($"[AudioBridge] Publishing: {enabled}");
+        }
+
+        private void OnDestroy()
+        {
+            UnpublishAudio();
+            if (_roomManager != null)
+                _roomManager.OnConnectionStateChanged -= OnConnectionStateChanged;
         }
     }
 }

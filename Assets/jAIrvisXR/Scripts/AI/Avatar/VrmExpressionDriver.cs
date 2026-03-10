@@ -120,17 +120,23 @@ namespace jAIrvisXR.AI.Avatar
             : 0f;
 
 #if HAS_UNIVRM
+        private UniVRM10.Vrm10Instance _vrmInstance;
+
         private void ApplyToVrm()
         {
             if (_avatarRoot == null) return;
-            // var vrm = _avatarRoot.GetComponent<UniVRM10.Vrm10Instance>();
-            // if (vrm == null) return;
-            // var expression = vrm.Runtime.Expression;
-            // expression.SetWeight(UniVRM10.ExpressionKey.Happy, _currentJoy);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Sad, _currentSorrow);
-            // expression.SetWeight(UniVRM10.ExpressionKey.Relaxed, _currentFun);
-            // expression.SetWeight(UniVRM10.ExpressionKey.BlinkLeft, BlinkWeight);
-            // expression.SetWeight(UniVRM10.ExpressionKey.BlinkRight, BlinkWeight);
+
+            if (_vrmInstance == null)
+            {
+                _vrmInstance = _avatarRoot.GetComponent<UniVRM10.Vrm10Instance>();
+                if (_vrmInstance == null) return;
+            }
+
+            var expression = _vrmInstance.Runtime.Expression;
+            expression.SetWeight(UniVRM10.ExpressionKey.Happy, _currentJoy);
+            expression.SetWeight(UniVRM10.ExpressionKey.Sad, _currentSorrow);
+            expression.SetWeight(UniVRM10.ExpressionKey.Relaxed, _currentFun);
+            expression.SetWeight(UniVRM10.ExpressionKey.Blink, BlinkWeight);
         }
 #endif
     }
