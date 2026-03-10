@@ -4,10 +4,6 @@ using UnityEngine;
 
 namespace jAIrvisXR.AI.Voice
 {
-    /// <summary>
-    /// Placeholder wake word detection using voice activity (energy threshold).
-    /// Replace with Picovoice Porcupine or custom keyword-spotting model for production.
-    /// </summary>
     public class WakeWordDetector : MonoBehaviour
     {
         [SerializeField] private VoicePipelineConfig _config;
@@ -50,7 +46,10 @@ namespace jAIrvisXR.AI.Voice
 
                 if (duration > 0.3f && duration < 3f)
                 {
-                    Debug.Log($"[WakeWordDetector] Speech detected ({duration:F1}s). Firing wake word event.");
+                    // Placeholder: fires on any short speech detection.
+                    // Replace with Picovoice Porcupine or custom keyword model.
+                    Debug.Log($"[WakeWordDetector] Speech detected ({duration:F1}s). " +
+                        "Placeholder: firing wake word event.");
                     OnWakeWordDetected?.Invoke();
                 }
             }
