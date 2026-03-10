@@ -184,7 +184,7 @@ async function callOllama(systemPrompt, messages, _tools) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "llama3.2",
+      model: CONFIG.ollamaModel,
       messages: ollamaMessages,
       stream: false,
     }),

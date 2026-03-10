@@ -44,6 +44,14 @@ namespace jAIrvisXR.AI.Voice
             _ttsProvider = _ttsProviderComponent as ITTSProvider;
             _agentService = _agentServiceComponent as IAgentService;
 
+            // Auto-wire: find providers on this GameObject if not assigned
+            if (_sttProvider == null)
+                _sttProvider = FindProvider<ISTTProvider>();
+            if (_ttsProvider == null)
+                _ttsProvider = FindProvider<ITTSProvider>();
+            if (_agentService == null)
+                _agentService = FindProvider<IAgentService>();
+
             if (_sttProvider == null)
                 Debug.LogError("[VoicePipeline] STT provider component does not implement ISTTProvider.");
             if (_ttsProvider == null)
@@ -222,6 +230,26 @@ namespace jAIrvisXR.AI.Voice
             Debug.Log($"[VoicePipeline] State: {_currentState} -> {newState}");
             _currentState = newState;
             _pipelineStateChangedEvent?.Raise(newState);
+        }
+
+        /// <summary>
+        /// Find the first MonoBehaviour on this GameObject implementing T.
+        /// Prefers real providers over mocks.
+        /// </summary>
+        private T FindProvider<T>() where T : class
+        {
+            var components = GetComponents<MonoBehaviour>();
+            T fallback = null;
+            foreach (var c in components)
+            {
+                if (c is T provider)
+                {
+                    bool isMock = c.GetType().Name.StartsWith("Mock", StringComparison.Ordinal);
+                    if (!isMock) return provider;
+                    fallback ??= provider;
+                }
+            }
+            return fallback;
         }
     }
 }

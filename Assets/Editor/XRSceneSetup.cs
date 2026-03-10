@@ -33,6 +33,8 @@ namespace jAIrvisXR.Editor
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.AudioPlaybackHandler");
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.MockSTTProvider");
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.MockTTSProvider");
+            AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.GroqWhisperSTTProvider");
+            AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.ElevenLabsTTSProvider");
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Agent.ClaudeAgentService");
 
             // 3. Environment group

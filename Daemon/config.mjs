@@ -27,6 +27,7 @@ export const CONFIG = {
   groqApiKey: process.env.GROQ_API_KEY || "",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+  ollamaModel: process.env.OLLAMA_MODEL || "qwen2.5-coder:14b",
 
   // STT
   whisperModel: "base",

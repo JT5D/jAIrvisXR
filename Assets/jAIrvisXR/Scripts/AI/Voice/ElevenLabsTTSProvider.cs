@@ -49,9 +49,10 @@ namespace jAIrvisXR.AI.Voice
             if (!IsReady) return TTSResult.Failure("Not initialized.");
             if (string.IsNullOrEmpty(text)) return TTSResult.Failure("Empty text.");
 
-            string endpoint = (_config != null && !string.IsNullOrEmpty(_config.Endpoint))
+            string baseEndpoint = (_config != null && !string.IsNullOrEmpty(_config.Endpoint))
                 ? _config.Endpoint
-                : $"https://api.elevenlabs.io/v1/text-to-speech/{_voiceId}";
+                : "https://api.elevenlabs.io/v1/text-to-speech";
+            string endpoint = $"{baseEndpoint}/{_voiceId}";
 
             string jsonBody = BuildRequestJson(text);
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
