@@ -10,11 +10,13 @@ namespace jAIrvisXR.AI.Voice
 {
     /// <summary>
     /// Real TTS provider using ElevenLabs API.
-    /// Returns audio as AudioClip for Unity playback.
+    /// Requests PCM s16le audio and creates AudioClip directly — no multimedia module needed.
     /// </summary>
     public class ElevenLabsTTSProvider : MonoBehaviour, ITTSProvider
     {
         [SerializeField] private TTSConfig _config;
+
+        private const int PCM_SAMPLE_RATE = 22050;
 
         private string _apiKey;
         private string _voiceId;
@@ -54,6 +56,9 @@ namespace jAIrvisXR.AI.Voice
                 : "https://api.elevenlabs.io/v1/text-to-speech";
             string endpoint = $"{baseEndpoint}/{_voiceId}";
 
+            // Add output_format query param for raw PCM
+            endpoint += "?output_format=pcm_22050";
+
             string jsonBody = BuildRequestJson(text);
             byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
 
@@ -62,8 +67,6 @@ namespace jAIrvisXR.AI.Voice
             request.downloadHandler = new DownloadHandlerBuffer();
             request.SetRequestHeader("Content-Type", "application/json");
             request.SetRequestHeader("xi-api-key", _apiKey);
-            // Request PCM format for easier AudioClip creation
-            request.SetRequestHeader("Accept", "audio/mpeg");
 
             var operation = request.SendWebRequest();
             while (!operation.isDone)
@@ -83,17 +86,11 @@ namespace jAIrvisXR.AI.Voice
                 return TTSResult.Failure($"HTTP {request.responseCode}: {error}");
             }
 
-            byte[] audioData = request.downloadHandler.data;
-            if (audioData == null || audioData.Length == 0)
+            byte[] pcmData = request.downloadHandler.data;
+            if (pcmData == null || pcmData.Length < 2)
                 return TTSResult.Failure("Empty audio response.");
 
-            // ElevenLabs returns MP3 — decode via AudioClip
-            // Unity doesn't natively decode MP3 from bytes, so we write to temp file
-            // and use UnityWebRequestMultimedia
-            AudioClip clip = await DecodeMp3(audioData, cancellationToken);
-            if (clip == null)
-                return TTSResult.Failure("Failed to decode audio.");
-
+            AudioClip clip = PcmToAudioClip(pcmData, PCM_SAMPLE_RATE);
             Debug.Log($"[{ProviderName}] Synthesized {clip.length:F1}s audio.");
             return TTSResult.Success(clip);
         }
@@ -120,43 +117,23 @@ namespace jAIrvisXR.AI.Voice
                 $"}}";
         }
 
-        private async Task<AudioClip> DecodeMp3(byte[] mp3Data,
-            CancellationToken cancellationToken)
+        /// <summary>
+        /// Convert raw PCM s16le bytes to Unity AudioClip.
+        /// </summary>
+        private static AudioClip PcmToAudioClip(byte[] pcmData, int sampleRate)
         {
-            // Write to temp file, then load via UnityWebRequestMultimedia
-            string tempPath = System.IO.Path.Combine(
-                Application.temporaryCachePath, $"tts_{DateTime.Now.Ticks}.mp3");
+            int sampleCount = pcmData.Length / 2; // 16-bit = 2 bytes per sample
+            float[] samples = new float[sampleCount];
 
-            try
+            for (int i = 0; i < sampleCount; i++)
             {
-                System.IO.File.WriteAllBytes(tempPath, mp3Data);
-
-                using var audioRequest = UnityWebRequestMultimedia.GetAudioClip(
-                    "file://" + tempPath, AudioType.MPEG);
-
-                var op = audioRequest.SendWebRequest();
-                while (!op.isDone)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        audioRequest.Abort();
-                        return null;
-                    }
-                    await Task.Yield();
-                }
-
-                if (audioRequest.result != UnityWebRequest.Result.Success)
-                {
-                    Debug.LogError($"[{ProviderName}] Audio decode error: {audioRequest.error}");
-                    return null;
-                }
-
-                return DownloadHandlerAudioClip.GetContent(audioRequest);
+                short s = (short)(pcmData[i * 2] | (pcmData[i * 2 + 1] << 8));
+                samples[i] = s / 32768f;
             }
-            finally
-            {
-                try { System.IO.File.Delete(tempPath); } catch { }
-            }
+
+            var clip = AudioClip.Create("ElevenLabsTTS", sampleCount, 1, sampleRate, false);
+            clip.SetData(samples, 0);
+            return clip;
         }
     }
 }

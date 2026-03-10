@@ -69,3 +69,6 @@ venv/
 
 # Node (if using any JS tooling)
 node_modules/
+
+# Claude Code worktrees
+.dev/
