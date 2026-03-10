@@ -70,5 +70,8 @@ venv/
 # Node (if using any JS tooling)
 node_modules/
 
+# APK/Build output
+Builds/
+
 # Claude Code worktrees
 .dev/

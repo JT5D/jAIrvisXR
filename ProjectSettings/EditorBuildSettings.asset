@@ -2,6 +2,14 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!1045 &1
 EditorBuildSettings:
+  m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
-  m_configObjects: {}
+  m_Scenes:
+  - enabled: 1
+    path: Assets/jAIrvisXR/Scenes/MainScene.unity
+    guid: 39c10ede334dc46218bdd23eccc22836
+  m_configObjects:
+    com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 45df07637c4b6407ea3a53b5927502d8, type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 29ee715c0cee04b439fd2617a35cca2b, type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 96e977853df414df3a19a79a411a9cdf, type: 2}
+  m_UseUCBPForAssetBundles: 0
