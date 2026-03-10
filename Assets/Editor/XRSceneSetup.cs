@@ -37,6 +37,25 @@ namespace jAIrvisXR.Editor
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Voice.ElevenLabsTTSProvider");
             AddComponentSafe(voiceMgr, "jAIrvisXR.AI.Agent.ClaudeAgentService");
 
+            // 2b. Network Manager
+            var networkMgr = CreateEmpty("NetworkManager", managers.transform);
+            AddComponentSafe(networkMgr, "jAIrvisXR.Networking.LiveKitRoomManager");
+            AddComponentSafe(networkMgr, "jAIrvisXR.Networking.MockMultiplayerProvider");
+            AddComponentSafe(networkMgr, "jAIrvisXR.Networking.LiveKitAudioBridge");
+
+            // 2c. Avatar system
+            var avatar = CreateEmpty("[Avatar]");
+            AddComponentSafe(avatar, "jAIrvisXR.AI.Avatar.VrmAvatarLoader");
+            AddComponentSafe(avatar, "jAIrvisXR.AI.Avatar.MockAvatarProvider");
+            AddComponentSafe(avatar, "jAIrvisXR.AI.Avatar.VrmLipSync");
+            AddComponentSafe(avatar, "jAIrvisXR.AI.Avatar.VrmExpressionDriver");
+            AddComponentSafe(avatar, "jAIrvisXR.AI.Avatar.VrmHandTrackingMapper");
+            AddComponentSafe(avatar, "jAIrvisXR.Core.Events.GameObjectEventListener");
+            AddComponentSafe(avatar, "jAIrvisXR.Core.Events.VoicePipelineEventListener");
+
+            var spawnPoint = CreateEmpty("AvatarSpawnPoint", avatar.transform);
+            spawnPoint.transform.localPosition = new Vector3(0, 0, 1.5f);
+
             // 3. Environment group
             var env = CreateEmpty("[Environment]");
 

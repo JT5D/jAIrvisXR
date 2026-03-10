@@ -8,7 +8,8 @@
     "com.unity.xr.interaction.toolkit": "3.0.7",
     "com.unity.xr.management": "4.5.0",
     "com.unity.xr.meta-openxr": "2.1.0",
-    "com.unity.xr.openxr": "1.13.1"
+    "com.unity.xr.openxr": "1.13.1",
+    "com.unity.modules.animation": "1.0.0"
   },
   "scopedRegistries": []
 }
