@@ -19,6 +19,7 @@ function log(msg) {
 function isProviderReady(name) {
   switch (name) {
     case "groq": return !!CONFIG.groqApiKey;
+    case "claude": return !!CONFIG.anthropicApiKey;
     case "gemini": return !!CONFIG.geminiApiKey;
     case "ollama": return true; // assume available, will fail fast if not
     default: return false;
@@ -29,6 +30,7 @@ export function getActiveProvider() { return activeProvider; }
 
 export function initProviders() {
   if (isProviderReady("groq")) activeProvider = "groq";
+  else if (isProviderReady("claude")) activeProvider = "claude";
   else if (isProviderReady("gemini")) activeProvider = "gemini";
   else activeProvider = "ollama";
   return activeProvider;
@@ -36,7 +38,7 @@ export function initProviders() {
 
 function switchProvider(reason) {
   failedProviders.add(activeProvider);
-  const available = ["groq", "gemini", "ollama"].filter(p => !failedProviders.has(p) && isProviderReady(p));
+  const available = ["groq", "claude", "gemini", "ollama"].filter(p => !failedProviders.has(p) && isProviderReady(p));
 
   if (available.length === 0) {
     allExhaustedUntil = Date.now() + 60_000;
@@ -65,6 +67,7 @@ function switchProvider(reason) {
 async function callProvider(systemPrompt, messages, tools) {
   switch (activeProvider) {
     case "groq": return await callGroq(systemPrompt, messages, tools);
+    case "claude": return await callAnthropic(systemPrompt, messages, tools);
     case "gemini": return await callGemini(systemPrompt, messages, tools);
     case "ollama": return await callOllama(systemPrompt, messages, tools);
     default: throw new Error(`Unknown provider: ${activeProvider}`);
@@ -116,6 +119,60 @@ async function callGroq(systemPrompt, messages, tools) {
   }));
 
   return { text: msg?.content || "", toolCalls };
+}
+
+async function callAnthropic(systemPrompt, messages, tools) {
+  const anthropicMessages = messages.map(m => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const body = {
+    model: CONFIG.anthropicModel,
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages: anthropicMessages,
+  };
+
+  if (tools?.length) {
+    body.tools = tools.map(t => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema,
+    }));
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": CONFIG.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Anthropic ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  let text = "";
+  const toolCalls = [];
+
+  for (const block of data.content || []) {
+    if (block.type === "text") text += block.text;
+    if (block.type === "tool_use") {
+      toolCalls.push({
+        id: block.id,
+        name: block.name,
+        input: block.input || {},
+      });
+    }
+  }
+
+  return { text, toolCalls };
 }
 
 async function callGemini(systemPrompt, messages, tools) {

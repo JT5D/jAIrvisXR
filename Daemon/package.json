@@ -6,7 +6,8 @@
   "main": "jarvis-daemon.mjs",
   "scripts": {
     "start": "node jarvis-daemon.mjs",
-    "dev": "node --watch jarvis-daemon.mjs"
+    "dev": "node --watch jarvis-daemon.mjs",
+    "preflight": "node preflight.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.0"

@@ -25,6 +25,8 @@ export const CONFIG = {
 
   // AI providers
   groqApiKey: process.env.GROQ_API_KEY || "",
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || "",
+  anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   ollamaUrl: process.env.OLLAMA_URL || "http://localhost:11434",
   ollamaModel: process.env.OLLAMA_MODEL || "qwen2.5-coder:14b",
@@ -34,6 +36,11 @@ export const CONFIG = {
   groqWhisperModel: "whisper-large-v3",
 
   // TTS
+  fishAudioApiKey: process.env.FISH_API_KEY || "",
+  fishAudioModel: process.env.FISH_AUDIO_MODEL || "s2-pro",
+  fishAudioReferenceId: process.env.FISH_AUDIO_VOICE_ID || "", // custom voice clone ID, empty = default
+  elevenlabsApiKey: process.env.ELEVENLABS_API_KEY || "",
+  elevenlabsVoiceId: process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM",
   ttsVoice: "en-US-GuyNeural",
   macVoice: "Samantha",
 

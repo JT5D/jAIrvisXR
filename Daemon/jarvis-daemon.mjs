@@ -11,6 +11,7 @@
  */
 import fs from "node:fs";
 import { CONFIG } from "./config.mjs";
+import { runPreflight } from "./preflight.mjs";
 import { memoryInit, memoryWrite } from "./shared-memory.mjs";
 import { logActivity } from "./activity-log.mjs";
 import { contextInit, contextToPrompt } from "./context-store.mjs";
@@ -54,6 +55,13 @@ async function getLlmResponse(text) {
  * Main loop — always listening.
  */
 async function main() {
+  // Preflight checks
+  const preflightOk = await runPreflight();
+  if (!preflightOk) {
+    console.error("\x1b[31mPreflight failed. Fix issues above and retry.\x1b[0m");
+    process.exit(1);
+  }
+
   // Initialize all subsystems
   const provider = initProviders();
   memoryInit();
@@ -74,19 +82,24 @@ async function main() {
   });
 
   // Banner
-  const providers = ["groq", "gemini", "ollama"]
-    .filter(p => p === "groq" ? CONFIG.groqApiKey : p === "gemini" ? CONFIG.geminiApiKey : true)
-    .map(p => p === "groq" ? "Groq" : p === "gemini" ? "Gemini" : "Ollama (local)")
+  const providerMap = { groq: "Groq", claude: "Claude", gemini: "Gemini", ollama: "Ollama (local)" };
+  const readyCheck = { groq: CONFIG.groqApiKey, claude: CONFIG.anthropicApiKey, gemini: CONFIG.geminiApiKey, ollama: true };
+  const providers = ["groq", "claude", "gemini", "ollama"]
+    .filter(p => readyCheck[p])
+    .map(p => providerMap[p])
     .join(" → ");
 
   console.log("\n\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m");
   console.log("\x1b[36m  Jarvis Daemon v3 — jAIrvisXR\x1b[0m");
   console.log("\x1b[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m");
   console.log(`  Brain:    ${providers} (auto-failover)`);
-  const ttsLabel = EDGE_TTS_BIN
-    ? `edge-tts (${CONFIG.ttsVoice}) → macOS say (${CONFIG.macVoice})`
-    : `macOS say (${CONFIG.macVoice})`;
-  console.log(`  Voice:    ${ttsLabel}`);
+  const ttsChain = [
+    CONFIG.fishAudioApiKey && `Fish Audio (${CONFIG.fishAudioModel})`,
+    CONFIG.elevenlabsApiKey && "ElevenLabs",
+    EDGE_TTS_BIN && `edge-tts (${CONFIG.ttsVoice})`,
+    `macOS say (${CONFIG.macVoice})`,
+  ].filter(Boolean).join(" → ");
+  console.log(`  Voice:    ${ttsChain}`);
   console.log(`  STT:      Groq Whisper → local Whisper (${CONFIG.whisperModel})`);
   console.log(`  Wake:     "Hey Jarvis" / "Jarvis"`);
   console.log(`  Tools:    ${TOOL_SCHEMAS.length}`);
@@ -108,7 +121,7 @@ async function main() {
   // Initial heartbeat
   memoryWrite("jarvis-heartbeat", Date.now());
 
-  const providerNames = { groq: "Groq", gemini: "Gemini", ollama: "local Ollama" };
+  const providerNames = { groq: "Groq", claude: "Claude", gemini: "Gemini", ollama: "local Ollama" };
   await speak(`Jarvis v3 online with ${providerNames[provider] || provider}.`);
 
   // Main voice loop
@@ -196,5 +209,18 @@ process.on("SIGINT", () => {
 });
 
 process.on("SIGTERM", () => process.emit("SIGINT"));
+
+// Crash recovery — log and exit so launchd restarts us
+process.on("uncaughtException", (err) => {
+  console.error(`\x1b[31mUNCAUGHT: ${err.message}\x1b[0m`);
+  logActivity({ agent: "jarvis-daemon", action: "uncaught-exception", success: false, error: err.message });
+  memoryWrite("jarvis-status", "crashed");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error(`\x1b[31mUNHANDLED REJECTION: ${reason}\x1b[0m`);
+  logActivity({ agent: "jarvis-daemon", action: "unhandled-rejection", success: false, error: String(reason) });
+});
 
 main();
