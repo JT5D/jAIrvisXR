@@ -1,0 +1,19 @@
+{
+  "name": "@jairvisxr/react-native",
+  "version": "1.0.0",
+  "description": "Jarvis React Native SDK — voice AI agent hooks & provider for React Native + Unity apps",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "react-native": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-native": ">=0.71.0"
+  },
+  "keywords": ["jarvis", "voice", "ai", "agent", "react-native", "xr", "unity"],
+  "license": "MIT"
+}

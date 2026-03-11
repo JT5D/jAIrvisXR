@@ -1,0 +1,31 @@
+{
+  "name": "@jairvisxr/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Jarvis — always-on voice AI agent. One-line install, superhuman powers.",
+  "bin": {
+    "jarvis": "./bin/jarvis.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "daemon/"
+  ],
+  "scripts": {
+    "start": "node bin/jarvis.mjs start",
+    "test": "node bin/jarvis.mjs status"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JT5D/jAIrvisXR.git",
+    "directory": "packages/cli"
+  },
+  "keywords": ["jarvis", "voice", "ai", "agent", "tts", "stt", "xr"]
+}
