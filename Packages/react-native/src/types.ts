@@ -17,10 +17,20 @@ export interface DaemonStatus {
   uptime: number;
 }
 
+export interface TimingMetrics {
+  routeMs?: number;
+  llmMs: number;
+  toolMs: number;
+  totalMs: number;
+}
+
 export interface CommandResult {
+  action?: string;
   response?: string;
   result?: string;
   toolsUsed?: string[];
+  timing?: TimingMetrics;
+  provider?: string;
 }
 
 export interface ContextItem {

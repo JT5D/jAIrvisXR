@@ -41,6 +41,7 @@ if (args.values.help || !command) {
   jarvis ask "question"     Send a text command
   jarvis say "text"         Speak text via TTS
   jarvis logs               View recent activity
+  jarvis bench              Run benchmark suite (20 prompts)
   jarvis setup              First-run setup wizard
 
 \x1b[33mOptions:\x1b[0m
@@ -81,6 +82,10 @@ try {
       }
       const result = await sendCommand(text, port);
       console.log(result.response || result.result || JSON.stringify(result));
+      if (args.values.verbose && result.timing) {
+        const t = result.timing;
+        console.log(`\x1b[90m  timing: llm=${t.llmMs}ms tool=${t.toolMs}ms total=${t.totalMs}ms provider=${result.provider || "unknown"}\x1b[0m`);
+      }
       break;
     }
 
@@ -109,6 +114,20 @@ try {
         const status = entry.success ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m";
         console.log(`  ${status} [${ts}] ${entry.action} ${entry.meta?.userText || ""}`);
       }
+      break;
+    }
+
+    case "bench": {
+      if (!(await isRunning(port))) {
+        console.error("Jarvis is not running. Start with: jarvis start");
+        process.exit(1);
+      }
+      const { execSync } = await import("node:child_process");
+      const { fileURLToPath } = await import("node:url");
+      const { dirname, resolve } = await import("node:path");
+      const __dirname = dirname(fileURLToPath(import.meta.url));
+      const benchPath = resolve(__dirname, "../../../Daemon/bench.mjs");
+      execSync(`node "${benchPath}" --port ${port}`, { stdio: "inherit" });
       break;
     }
 

@@ -9,6 +9,7 @@
  */
 import { useCallback } from "react";
 import { useJarvis } from "./useJarvis";
+import type { TimingMetrics } from "./types";
 
 /** Portals V4 SemanticAction types (subset for bridge compatibility) */
 export type SemanticActionType =
@@ -39,6 +40,8 @@ export interface BridgeResult {
   response: string;
   actions: SemanticAction[];
   provider: string;
+  requestId: string;
+  timing?: TimingMetrics;
 }
 
 /**
@@ -69,14 +72,15 @@ export function useBridge(
 
   const executeVoiceCommand = useCallback(
     async (transcript: string): Promise<BridgeResult> => {
+      const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const result = await sendCommand(transcript);
       const response = result.response || result.result || "";
       const actions = parseResponseToActions(response);
 
-      // If we have scene actions and a Unity bridge, execute them
+      // If we have scene actions and a Unity bridge, execute them with correlation ID
       if (sendToUnity && actions.length > 0) {
         for (const action of actions) {
-          sendToUnity(action.type, action.params);
+          sendToUnity(action.type, { ...action.params, _requestId: requestId });
         }
       }
 
@@ -84,7 +88,9 @@ export function useBridge(
         transcript,
         response,
         actions,
-        provider: "jarvis-daemon",
+        provider: result.provider || "jarvis-daemon",
+        requestId,
+        timing: result.timing,
       };
     },
     [sendCommand, sendToUnity]

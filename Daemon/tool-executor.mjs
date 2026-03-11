@@ -118,6 +118,35 @@ export const TOOL_SCHEMAS = [
       required: ["category", "lesson"],
     },
   },
+  {
+    name: "generate_scene_actions",
+    description: "Generate structured scene actions for Unity. Use when the user wants to add, remove, modify, or arrange objects in a 3D scene. Returns SemanticAction JSON that the Unity bridge can execute directly.",
+    input_schema: {
+      type: "object",
+      properties: {
+        actions: {
+          type: "array",
+          description: "Array of scene actions to execute",
+          items: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                enum: ["ADD_OBJECT", "REMOVE_OBJECT", "MODIFY_OBJECTS", "TRANSFORM_OBJECT", "CLEAR_SCENE", "ADD_EMITTER", "SET_ANIMATION", "ADD_COMPONENT", "SET_PROPERTY", "ARRANGE_FORMATION", "SET_VIBE", "CHANGE_LIGHTING"],
+                description: "Scene action type",
+              },
+              params: {
+                type: "object",
+                description: "Action parameters (shape, color, position, scale, etc.)",
+              },
+            },
+            required: ["type", "params"],
+          },
+        },
+      },
+      required: ["actions"],
+    },
+  },
 ];
 
 export function executeTool(name, input) {
@@ -239,6 +268,19 @@ export function executeTool(name, input) {
         while (lessons.length > 50) lessons.shift();
         memoryWrite("agent-lessons", lessons);
         result = `Lesson recorded: [${input.category}] ${input.lesson.slice(0, 60)}`;
+        break;
+      }
+
+      case "generate_scene_actions": {
+        // Pass-through: LLM structures the data, we validate and return as JSON
+        const actions = input.actions || [];
+        const validTypes = new Set([
+          "ADD_OBJECT", "REMOVE_OBJECT", "MODIFY_OBJECTS", "TRANSFORM_OBJECT",
+          "CLEAR_SCENE", "ADD_EMITTER", "SET_ANIMATION", "ADD_COMPONENT",
+          "SET_PROPERTY", "ARRANGE_FORMATION", "SET_VIBE", "CHANGE_LIGHTING",
+        ]);
+        const validated = actions.filter(a => validTypes.has(a.type) && a.params);
+        result = JSON.stringify({ actions: validated });
         break;
       }
 

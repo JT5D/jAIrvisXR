@@ -44,6 +44,7 @@ if (!fs.existsSync(CONFIG.tmpDir)) fs.mkdirSync(CONFIG.tmpDir, { recursive: true
 
 /**
  * Get LLM response with context injection.
+ * Returns { text, timing, provider, toolRounds } from llm-client.
  */
 async function getLlmResponse(text) {
   const contextBlock = contextToPrompt();
@@ -161,7 +162,8 @@ async function main() {
           if (afterWake.length > 2) {
             logUser(afterWake);
             mode = "processing";
-            const response = await getLlmResponse(afterWake);
+            const result = await getLlmResponse(afterWake);
+            const response = result.text ?? result;
             logJarvis(response);
             await speak(response);
             mode = "active";
@@ -172,7 +174,8 @@ async function main() {
       } else if (mode === "active") {
         logUser(text);
         mode = "processing";
-        const response = await getLlmResponse(text);
+        const result = await getLlmResponse(text);
+        const response = result.text ?? result;
         logJarvis(response);
         await speak(response);
         mode = "active";

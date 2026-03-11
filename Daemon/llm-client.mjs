@@ -276,17 +276,22 @@ export async function getResponse(text, conversationHistory, systemPrompt, tools
 
   if (Date.now() < allExhaustedUntil) {
     const waitSec = Math.ceil((allExhaustedUntil - Date.now()) / 1000);
-    return `All providers cooling down. Try in ${waitSec}s.`;
+    const errText = `All providers cooling down. Try in ${waitSec}s.`;
+    return { text: errText, timing: { llmMs: 0, toolMs: 0, totalMs: Date.now() - start }, provider: activeProvider, toolRounds: 0 };
   }
 
   let finalResponse = "";
   let toolRounds = 0;
   let retries = 0;
+  let llmMs = 0;
+  let toolMs = 0;
 
   while (toolRounds < CONFIG.maxToolRounds) {
     let result;
     try {
+      const llmStart = Date.now();
       result = await callProvider(systemPrompt, conversationHistory, tools);
+      llmMs += Date.now() - llmStart;
     } catch (err) {
       const isRateLimit = /429|rate.?limit|quota/i.test(err.message);
       if (isRateLimit) {
@@ -299,7 +304,8 @@ export async function getResponse(text, conversationHistory, systemPrompt, tools
         }
       }
       log(`\x1b[31mAI Error (${activeProvider}): ${err.message.slice(0, 100)}\x1b[0m`);
-      return "I'm having trouble thinking right now.";
+      const errText = "I'm having trouble thinking right now.";
+      return { text: errText, timing: { llmMs, toolMs, totalMs: Date.now() - start }, provider: activeProvider, toolRounds };
     }
 
     if (!result.toolCalls?.length) {
@@ -316,7 +322,9 @@ export async function getResponse(text, conversationHistory, systemPrompt, tools
     const { executeTool } = await import("./tool-executor.mjs");
     for (const tc of result.toolCalls) {
       log(`\x1b[35m  Tool: ${tc.name}(${JSON.stringify(tc.input).slice(0, 60)})\x1b[0m`);
+      const toolStart = Date.now();
       const toolResult = executeTool(tc.name, tc.input);
+      toolMs += Date.now() - toolStart;
       console.log(`\x1b[35m  Result:\x1b[0m ${String(toolResult).slice(0, 80).replace(/\n/g, " ")}`);
       conversationHistory.push({
         role: "user",
@@ -328,14 +336,16 @@ export async function getResponse(text, conversationHistory, systemPrompt, tools
     if (result.text) finalResponse = result.text;
   }
 
+  const totalMs = Date.now() - start;
+
   logActivity({
     agent: "jarvis-daemon",
     action: "conversation",
-    durationMs: Date.now() - start,
+    durationMs: totalMs,
     success: true,
-    meta: { userText: text.slice(0, 100), toolRounds, provider: activeProvider },
+    meta: { userText: text.slice(0, 100), toolRounds, provider: activeProvider, timing: { llmMs, toolMs, totalMs } },
   });
 
   conversationHistory.push({ role: "assistant", content: finalResponse });
-  return finalResponse;
+  return { text: finalResponse, timing: { llmMs, toolMs, totalMs }, provider: activeProvider, toolRounds };
 }
