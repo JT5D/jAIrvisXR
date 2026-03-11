@@ -464,10 +464,11 @@ export async function getResponse(text, conversationHistory, systemPrompt, tools
       llmMs += Date.now() - llmStart;
     } catch (err) {
       const isRateLimit = /429|rate.?limit|quota/i.test(err.message);
-      if (isRateLimit) {
+      const isBilling = /credit|billing|balance|payment|subscription/i.test(err.message);
+      if (isRateLimit || isBilling) {
         const switched = switchProvider(err.message.slice(0, 80));
         if (switched) continue;
-        if (retries < 2) {
+        if (isRateLimit && retries < 2) {
           await new Promise(r => setTimeout(r, 5000 * (retries + 1)));
           retries++;
           continue;
