@@ -52,6 +52,14 @@ export interface LogEntry {
   meta?: Record<string, unknown>;
 }
 
+export interface StreamEvent {
+  type: "start" | "chunk" | "done" | "error";
+  text?: string;
+  provider?: string;
+  timing?: TimingMetrics;
+  error?: string;
+}
+
 export interface JarvisContextValue {
   connected: boolean;
   status: DaemonStatus | null;

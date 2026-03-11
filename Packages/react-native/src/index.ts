@@ -17,6 +17,7 @@ export { JarvisContext } from "./JarvisProvider";
 export { useJarvis } from "./useJarvis";
 export { useVoice } from "./useVoice";
 export { useBridge } from "./useBridge";
+export { useStream } from "./useStream";
 
 // Client (for direct API access without React)
 export { JarvisClient } from "./client";
@@ -30,7 +31,11 @@ export type {
   CommandResult,
   ContextItem,
   LogEntry,
+  TimingMetrics,
+  StreamEvent,
 } from "./types";
+
+export type { StreamState } from "./useStream";
 
 export type {
   SemanticAction,

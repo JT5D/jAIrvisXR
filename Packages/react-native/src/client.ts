@@ -1,7 +1,7 @@
 /**
  * Typed HTTP client for Jarvis Daemon API.
  */
-import type { DaemonStatus, CommandResult, ContextItem, LogEntry } from "./types";
+import type { DaemonStatus, CommandResult, ContextItem, LogEntry, StreamEvent } from "./types";
 
 export class JarvisClient {
   private endpoint: string;
@@ -67,6 +67,50 @@ export class JarvisClient {
     const res = await fetch(this.url(`/api/logs?${params}`));
     if (!res.ok) throw new Error(`Logs failed: ${res.status}`);
     return res.json();
+  }
+
+  /**
+   * Stream a command via SSE. Calls onEvent for each server-sent event.
+   * Returns the full response text when the stream completes.
+   */
+  async streamCommand(
+    command: string,
+    onEvent: (event: StreamEvent) => void
+  ): Promise<string> {
+    const res = await fetch(this.url("/api/stream"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command }),
+    });
+    if (!res.ok) throw new Error(`Stream failed: ${res.status}`);
+
+    let fullText = "";
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        try {
+          const event: StreamEvent = JSON.parse(trimmed.slice(6));
+          onEvent(event);
+          if (event.type === "chunk" && event.text) {
+            fullText += event.text;
+          }
+        } catch {}
+      }
+    }
+
+    return fullText;
   }
 
   async isReachable(): Promise<boolean> {
