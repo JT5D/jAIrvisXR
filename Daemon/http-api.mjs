@@ -10,9 +10,12 @@ import { readLog, getPerformanceSummary } from "./activity-log.mjs";
 import { logActivity } from "./activity-log.mjs";
 import { contextAdd, contextGetAll, contextClear, contextRemove } from "./context-store.mjs";
 import { routeCommand } from "./command-router.mjs";
+import { getStreamingResponse, getActiveProvider } from "./llm-client.mjs";
+import { contextToPrompt } from "./context-store.mjs";
 
 let server = null;
 let getLlmResponse = null;
+let conversationHistory = null;
 
 function readBody(req) {
   return new Promise((resolve) => {
@@ -32,8 +35,9 @@ function json(res, statusCode, body) {
   res.end(JSON.stringify(body));
 }
 
-export function startHttpApi(llmResponseFn) {
+export function startHttpApi(llmResponseFn, convHistory) {
   getLlmResponse = llmResponseFn;
+  conversationHistory = convHistory || [];
 
   server = createServer(async (req, res) => {
     // CORS preflight
@@ -117,6 +121,44 @@ export function startHttpApi(llmResponseFn) {
       // Performance stats
       if (url.pathname === "/api/performance" && req.method === "GET") {
         json(res, 200, getPerformanceSummary());
+        return;
+      }
+
+      // Streaming SSE endpoint
+      if (url.pathname === "/api/stream" && req.method === "POST") {
+        const body = JSON.parse(await readBody(req));
+        if (!body.command) {
+          json(res, 400, { error: "Missing command" });
+          return;
+        }
+
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*",
+        });
+
+        const provider = getActiveProvider();
+        res.write(`data: ${JSON.stringify({ type: "start", provider })}\n\n`);
+
+        const start = Date.now();
+        try {
+          const systemPrompt = CONFIG.systemPrompt + contextToPrompt();
+          const result = await getStreamingResponse(
+            body.command,
+            conversationHistory,
+            systemPrompt,
+            (chunk) => {
+              res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
+            }
+          );
+
+          res.write(`data: ${JSON.stringify({ type: "done", timing: result.timing, provider: result.provider })}\n\n`);
+        } catch (err) {
+          res.write(`data: ${JSON.stringify({ type: "error", error: err.message?.slice(0, 200) })}\n\n`);
+        }
+        res.end();
         return;
       }
 

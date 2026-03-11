@@ -121,6 +121,176 @@ async function callGroq(systemPrompt, messages, tools) {
   return { text: msg?.content || "", toolCalls };
 }
 
+/**
+ * Streaming call to Groq — yields text chunks via callback.
+ * Falls back to non-streaming for tool calls.
+ */
+async function callGroqStream(systemPrompt, messages, onChunk) {
+  const groqMessages = [
+    { role: "system", content: systemPrompt },
+    ...messages,
+  ];
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${CONFIG.groqApiKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: groqMessages,
+      temperature: 0.7,
+      max_tokens: 1024,
+      stream: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Groq stream ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  let fullText = "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // keep incomplete line
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      const data = trimmed.slice(6);
+      if (data === "[DONE]") break;
+
+      try {
+        const parsed = JSON.parse(data);
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onChunk(delta);
+        }
+      } catch {}
+    }
+  }
+
+  return fullText;
+}
+
+/**
+ * Streaming call to Anthropic — yields text chunks via callback.
+ */
+async function callAnthropicStream(systemPrompt, messages, onChunk) {
+  const anthropicMessages = messages.map(m => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": CONFIG.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: CONFIG.anthropicModel,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: anthropicMessages,
+      stream: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Anthropic stream ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  let fullText = "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data: ")) continue;
+      const data = trimmed.slice(6);
+
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+          fullText += parsed.delta.text;
+          onChunk(parsed.delta.text);
+        }
+      } catch {}
+    }
+  }
+
+  return fullText;
+}
+
+/**
+ * Get a streaming response — calls onChunk for each text fragment.
+ * Returns the full response text when complete.
+ */
+export async function getStreamingResponse(text, conversationHistory, systemPrompt, onChunk) {
+  const start = Date.now();
+  conversationHistory.push({ role: "user", content: text });
+
+  if (conversationHistory.length > CONFIG.maxConversationMessages) {
+    conversationHistory.splice(0, conversationHistory.length - CONFIG.maxConversationMessages);
+  }
+
+  try {
+    let fullText;
+    if (activeProvider === "groq" && CONFIG.groqApiKey) {
+      fullText = await callGroqStream(systemPrompt, conversationHistory, onChunk);
+    } else if (activeProvider === "claude" && CONFIG.anthropicApiKey) {
+      fullText = await callAnthropicStream(systemPrompt, conversationHistory, onChunk);
+    } else {
+      // Fallback to non-streaming for Gemini/Ollama
+      const result = await getResponse(text, conversationHistory, systemPrompt, []);
+      onChunk(result.text);
+      return result;
+    }
+
+    const totalMs = Date.now() - start;
+    conversationHistory.push({ role: "assistant", content: fullText });
+
+    logActivity({
+      agent: "jarvis-daemon",
+      action: "stream-conversation",
+      durationMs: totalMs,
+      success: true,
+      meta: { userText: text.slice(0, 100), provider: activeProvider },
+    });
+
+    return { text: fullText, timing: { llmMs: totalMs, toolMs: 0, totalMs }, provider: activeProvider, toolRounds: 0 };
+  } catch (err) {
+    log(`\x1b[31mStream error (${activeProvider}): ${err.message.slice(0, 100)}\x1b[0m`);
+    // Fallback to non-streaming
+    const result = await getResponse(text, conversationHistory, systemPrompt, []);
+    onChunk(result.text);
+    return result;
+  }
+}
+
 async function callAnthropic(systemPrompt, messages, tools) {
   const anthropicMessages = messages.map(m => ({
     role: m.role,

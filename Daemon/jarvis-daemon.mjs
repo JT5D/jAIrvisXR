@@ -107,8 +107,8 @@ async function main() {
   console.log(`  Memory:   ${CONFIG.memFile}`);
   console.log(`  Log:      ${CONFIG.logFile}`);
 
-  // Start HTTP API
-  startHttpApi(getLlmResponse);
+  // Start HTTP API (pass conversationHistory for streaming endpoint)
+  startHttpApi(getLlmResponse, conversationHistory);
 
   console.log(`  Partner:  Claude Code (shared memory)`);
   console.log(`\x1b[90m  Press Ctrl+C to stop\x1b[0m\n`);
