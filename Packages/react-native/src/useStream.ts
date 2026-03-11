@@ -51,28 +51,33 @@ export function useStream() {
       setError(null);
 
       let accumulated = "";
+      abortRef.current = new AbortController();
 
       try {
-        const result = await client.streamCommand(command, (event: StreamEvent) => {
-          switch (event.type) {
-            case "start":
-              setProvider(event.provider || null);
-              break;
-            case "chunk":
-              if (event.text) {
-                accumulated += event.text;
-                setFullText(accumulated);
-                onChunk?.(event.text, accumulated);
-              }
-              break;
-            case "done":
-              setTiming(event.timing || null);
-              break;
-            case "error":
-              setError(event.error || "Stream error");
-              break;
-          }
-        });
+        const result = await client.streamCommand(
+          command,
+          (event: StreamEvent) => {
+            switch (event.type) {
+              case "start":
+                setProvider(event.provider || null);
+                break;
+              case "chunk":
+                if (event.text) {
+                  accumulated += event.text;
+                  setFullText(accumulated);
+                  onChunk?.(event.text, accumulated);
+                }
+                break;
+              case "done":
+                setTiming(event.timing || null);
+                break;
+              case "error":
+                setError(event.error || "Stream error");
+                break;
+            }
+          },
+          abortRef.current.signal
+        );
 
         setStreaming(false);
         return result;

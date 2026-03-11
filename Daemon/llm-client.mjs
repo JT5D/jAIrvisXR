@@ -10,6 +10,8 @@ import { memoryWrite } from "./shared-memory.mjs";
 let activeProvider = "groq";
 let failedProviders = new Set();
 let allExhaustedUntil = 0;
+let lastProviderRecoveryCheck = 0;
+const PROVIDER_RECOVERY_INTERVAL = 5 * 60_000; // retry failed providers every 5 min
 
 function log(msg) {
   const ts = new Date().toLocaleTimeString();
@@ -27,6 +29,25 @@ function isProviderReady(name) {
 }
 
 export function getActiveProvider() { return activeProvider; }
+
+/**
+ * Periodically clear failed providers so higher-priority ones get retried.
+ */
+function maybeRecoverProviders() {
+  const now = Date.now();
+  if (now - lastProviderRecoveryCheck < PROVIDER_RECOVERY_INTERVAL) return;
+  lastProviderRecoveryCheck = now;
+  if (failedProviders.size > 0) {
+    const priority = ["groq", "claude", "gemini", "ollama"];
+    const bestAvailable = priority.find(p => !failedProviders.has(p) && isProviderReady(p));
+    failedProviders.clear();
+    const bestAfterClear = priority.find(p => isProviderReady(p));
+    if (bestAfterClear && bestAfterClear !== activeProvider) {
+      log(`\x1b[33mRecovery: retrying ${bestAfterClear} (was ${activeProvider})\x1b[0m`);
+      activeProvider = bestAfterClear;
+    }
+  }
+}
 
 export function initProviders() {
   if (isProviderReady("groq")) activeProvider = "groq";
@@ -250,6 +271,7 @@ async function callAnthropicStream(systemPrompt, messages, onChunk) {
  * Returns the full response text when complete.
  */
 export async function getStreamingResponse(text, conversationHistory, systemPrompt, onChunk) {
+  maybeRecoverProviders();
   const start = Date.now();
   conversationHistory.push({ role: "user", content: text });
 
@@ -265,6 +287,8 @@ export async function getStreamingResponse(text, conversationHistory, systemProm
       fullText = await callAnthropicStream(systemPrompt, conversationHistory, onChunk);
     } else {
       // Fallback to non-streaming for Gemini/Ollama
+      // Remove the user message we already pushed — getResponse() will re-add it
+      conversationHistory.pop();
       const result = await getResponse(text, conversationHistory, systemPrompt, []);
       onChunk(result.text);
       return result;
@@ -284,7 +308,8 @@ export async function getStreamingResponse(text, conversationHistory, systemProm
     return { text: fullText, timing: { llmMs: totalMs, toolMs: 0, totalMs }, provider: activeProvider, toolRounds: 0 };
   } catch (err) {
     log(`\x1b[31mStream error (${activeProvider}): ${err.message.slice(0, 100)}\x1b[0m`);
-    // Fallback to non-streaming
+    // Fallback to non-streaming — remove user message we already pushed, getResponse() will re-add
+    conversationHistory.pop();
     const result = await getResponse(text, conversationHistory, systemPrompt, []);
     onChunk(result.text);
     return result;
@@ -431,6 +456,7 @@ async function callOllama(systemPrompt, messages, _tools) {
  * Main entry point for conversation.
  */
 export async function getResponse(text, conversationHistory, systemPrompt, tools) {
+  maybeRecoverProviders();
   const start = Date.now();
   conversationHistory.push({ role: "user", content: text });
 

@@ -75,12 +75,14 @@ export class JarvisClient {
    */
   async streamCommand(
     command: string,
-    onEvent: (event: StreamEvent) => void
+    onEvent: (event: StreamEvent) => void,
+    signal?: AbortSignal
   ): Promise<string> {
     const res = await fetch(this.url("/api/stream"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command }),
+      signal,
     });
     if (!res.ok) throw new Error(`Stream failed: ${res.status}`);
 
