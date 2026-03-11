@@ -41,4 +41,5 @@ export type {
   SemanticAction,
   SemanticActionType,
   BridgeResult,
+  StreamBridgeCallbacks,
 } from "./useBridge";
